@@ -203,8 +203,12 @@ def node_sampling(p=None):
     G = graphs.Graph(adj)
     C, Gc, _, _ = coarsen(G, K=10, r=0.9, method='variation_neighborhood')
     C = torch.tensor(C/C.sum(1), dtype=torch.float32)
+    print(C.shape)              # n_s * n
     super_node_feature = torch.matmul(C, data_x)
+    print(super_node_feature.shape)     # n_s * d
     feature = torch.cat([data_x, super_node_feature])
+    print(feature.shape)                # (n + n_s) * d
+    # exit(0)
     node_supernode_dict = {}
     for i in range(data_y.shape[0]):
         node_supernode_dict[i] = torch.where(C[:, i] > 0)[0].item()
@@ -216,7 +220,7 @@ def node_sampling(p=None):
         coarse_power_adj_list.append(np.matmul(normalized_coarse_graph, coarse_power_adj_list[m]))
 
     #create subgraph samples
-    data_list = []
+    data_list = []                
     for id in range(data_y.shape[0]):
         sub_data_list = []
         s = eigen_adj[id]

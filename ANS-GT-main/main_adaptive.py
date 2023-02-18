@@ -238,7 +238,13 @@ def main():
         if epoch % args.weight_update_period == 0:
             r = get_reward(args, model, device, val_loader, p)
             print('reward:', r)
-            sampling_weight = sampling_weight*np.exp(2.0*(r+0.01/p))
+            
+            # use moving average to update the sampling weight
+            sampling_weight = 0.9*sampling_weight + 0.1*np.exp(2.0*(r+0.01/p))
+
+            # sample weight is moving avg of rewards
+            sampling_weight = 0.9*sampling_weight + 0.1*r
+
             p = (1 - 4 * p_min) * sampling_weight / sum(sampling_weight) + p_min
             print('p:', p)
             weight_history.append(p)
