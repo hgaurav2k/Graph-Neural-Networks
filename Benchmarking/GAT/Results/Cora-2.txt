@@ -1,2 +1,0 @@
-Best Test F1(at best val): 0.0425
-Best Val F1: 0.0419
