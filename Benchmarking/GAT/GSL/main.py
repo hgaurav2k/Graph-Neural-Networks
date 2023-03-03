@@ -43,73 +43,60 @@ model_folder = './models/'+args.dataset
 
 os.makedirs(model_folder, exist_ok=True)
 
-
+train_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
 
 model = GAT(hidden_channels=32,num_features=dataset.num_features,num_layers=args.k,num_classes=dataset.num_classes).to(device)   # Note change num_features when needed
 
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5,weight_decay=5e-1)
-criterion = torch.nn.CrossEntropyLoss()
+criterion = torch.nn.MSELoss()
 
 def getMacroF1(y_true, y_pred):
     return metrics.f1_score(y_true, y_pred, average='macro')
 
 
-f1_train_list = []
-f1_val_list = []
 loss_train_list = []
 loss_val_list = []
 
-def train(epoch):
+def train():
     model.train()
-    optimizer.zero_grad()  # Clear gradients.
-    out = model(data.x, data.edge_index)  # Perform a single forward pass.
-    loss = criterion(out[data.train_mask], data.y[data.train_mask])  # Compute the loss solely based on the training nodes.
-    if epoch%20 == 0:
-        f1_train = getMacroF1(data.y[data.train_mask].cpu().numpy(), out[data.train_mask].argmax(dim=1).cpu().numpy())
-        f1_train_list.append(f1_train)
-        loss_train_list.append(loss.item())
-    loss.backward()  # Derive gradients.
-    optimizer.step()  # Update parameters based on gradients.
-    return loss
 
-best_val_f1 = -1
-def val(epoch):
+    for batch_idx, (data1, data2, target) in enumerate(train_loader):
+        data1, data2, target = data1.to(device), data2.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = model(data1, data2)
+        loss = criterion(output, target)
+        loss.backward()
+        optimizer.step()
+        
+        if batch_idx % 100 == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data1), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss.item()))
+        loss_train_list.append(loss.item())
+
+def val():
     model.eval()
-    out = model(data.x, data.edge_index)
-    val_loss = criterion(out[data.val_mask], data.y[data.val_mask])
-    f1_val = getMacroF1(data.y[data.val_mask].cpu().numpy(), out[data.val_mask].argmax(dim=1).cpu().numpy())
-    global best_val_f1
-    if f1_val > best_val_f1:
-        best_val_f1 = f1_val
-    if epoch%20 == 0:
-        f1_val_list.append(f1_val)
-        loss_val_list.append(val_loss.item())
-    pred = out.argmax(dim=1)  # Use the class with highest probability.
-    val_correct = pred[data.val_mask] == data.y[data.val_mask]  # Check against ground-truth labels.
-    val_acc = int(val_correct.sum()) / int(data.val_mask.sum())  # Derive ratio of correct predictions.
-    return val_loss, val_acc, f1_val
+
+    val_loss = 0
+    with torch.no_grad():
+        for data1, data2, target in val_loader:
+            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
+            output = model(data1, data2)
+            val_loss += criterion(output, target).item()  # sum up batch loss
 
 def test():
     model.eval()
-    out = model(data.x, data.edge_index)
-    f1_test = getMacroF1(data.y[data.test_mask].cpu().numpy(), out[data.test_mask].argmax(dim=1).cpu().numpy())
-    pred = out.argmax(dim=1)  # Use the class with highest probability.
-    test_correct = pred[data.test_mask] == data.y[data.test_mask]  # Check against ground-truth labels.
-    test_acc = int(test_correct.sum()) / int(data.test_mask.sum())  # Derive ratio of correct predictions.
-    return f1_test,test_acc
+
+    test_loss = 0
+    with torch.no_grad():
+        for data1, data2, target in test_loader:
+            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
+            output = model(data1, data2)
+            test_loss += criterion(output, target).item()  # sum up batch loss
+
+    test_loss /= len(test_loader.dataset)
 
 def plot():
-    # plot f1 score for train and val every 20 epochs
-    plt.clf()
-    plt.plot([20*i for i in range(len(f1_train_list))],f1_train_list, label='train')    # TODO maybe just set ticks at 20
-    plt.plot([20*i for i in range(len(f1_val_list))],f1_val_list, label='val')
-    plt.legend()
-    plt.title("Macro F1 vs Epoch")
-    plt.xlabel("Epoch")
-    plt.ylabel("F1")
-    plt.draw()
-    plt.savefig(f"Plots/{args.dataset}-{args.k}-perf.png")
-    plt.close()
 
     # plot loss for train and val every 20 epochs
     plt.clf()
@@ -148,7 +135,7 @@ with open(f'Results/{args.dataset}-{args.k}.txt', 'w') as f:
     # best test f1
     f.write(f"Best Test F1(at best val): {best_test_f1:.4f}\n")
     # best val f1
-    f.write(f"Best Val F1: {best_val_f1:.4f}")
+    f.write(f"Best Val MSE: {best_val_mse:.4f}")
 
 
 

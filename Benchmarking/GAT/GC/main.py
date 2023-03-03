@@ -1,12 +1,13 @@
 
 import torch
-from data_utils import load_data
 import argparse
 from model import GAT           # TODO check this
 # from model_message_passing import GNN
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 import os
+from ogb.graphproppred import PygGraphPropPredDataset
+from torch_geometric.data import DataLoader
 
 
 parser = argparse.ArgumentParser()
@@ -14,7 +15,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="name of the dataset", type=str)
 parser.add_argument("--k", help="number of GNN layers",type=int)
 args = parser.parse_args()
-dataset =load_data(args.dataset)
+
+dataset = PygGraphPropPredDataset(name = args.dataset)  # ogbg-ppa
+
+split_idx = dataset.get_idx_split() 
+train_loader = DataLoader(dataset[split_idx["train"]], batch_size=32, shuffle=True)
+valid_loader = DataLoader(dataset[split_idx["valid"]], batch_size=32, shuffle=False)
+test_loader = DataLoader(dataset[split_idx["test"]], batch_size=32, shuffle=False)
+
 print()
 print(f'Dataset: {dataset}:')
 print(' Number of GNN layers ', args.k)
@@ -61,42 +69,49 @@ loss_val_list = []
 
 def train(epoch):
     model.train()
-    optimizer.zero_grad()  # Clear gradients.
-    out = model(data.x, data.edge_index)  # Perform a single forward pass.
-    loss = criterion(out[data.train_mask], data.y[data.train_mask])  # Compute the loss solely based on the training nodes.
+
+    for data in train_loader:  # Iterate in batches over the training dataset.
+        data = data.to(device)
+        optimizer.zero_grad()  # Clear gradients.
+        out = model(data.x, data.edge_index)  # Perform a single forward pass.
+        # f1_train = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
+        # f1_train_list.append(f1_train)
+        loss = criterion(out, data.y)  # Compute the loss solely based on the training nodes.
+        loss.backward()  # Derive gradients.
+        optimizer.step()  # Update parameters based on gradients.
+    
     if epoch%20 == 0:
-        f1_train = getMacroF1(data.y[data.train_mask].cpu().numpy(), out[data.train_mask].argmax(dim=1).cpu().numpy())
+        f1_train = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
         f1_train_list.append(f1_train)
         loss_train_list.append(loss.item())
-    loss.backward()  # Derive gradients.
-    optimizer.step()  # Update parameters based on gradients.
-    return loss
 
 best_val_f1 = -1
+
 def val(epoch):
     model.eval()
-    out = model(data.x, data.edge_index)
-    val_loss = criterion(out[data.val_mask], data.y[data.val_mask])
-    f1_val = getMacroF1(data.y[data.val_mask].cpu().numpy(), out[data.val_mask].argmax(dim=1).cpu().numpy())
-    global best_val_f1
-    if f1_val > best_val_f1:
-        best_val_f1 = f1_val
-    if epoch%20 == 0:
-        f1_val_list.append(f1_val)
-        loss_val_list.append(val_loss.item())
-    pred = out.argmax(dim=1)  # Use the class with highest probability.
-    val_correct = pred[data.val_mask] == data.y[data.val_mask]  # Check against ground-truth labels.
-    val_acc = int(val_correct.sum()) / int(data.val_mask.sum())  # Derive ratio of correct predictions.
-    return val_loss, val_acc, f1_val
+    for data in valid_loader:
+        data = data.to(device)
+        out = model(data.x, data.edge_index)
+        val_loss = criterion(out, data.y)
+        f1_val = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
+        global best_val_f1
+        if f1_val > best_val_f1:
+            best_val_f1 = f1_val
+        if epoch%20 == 0:
+            f1_val_list.append(f1_val)
+            loss_val_list.append(val_loss.item())
 
 def test():
     model.eval()
-    out = model(data.x, data.edge_index)
-    f1_test = getMacroF1(data.y[data.test_mask].cpu().numpy(), out[data.test_mask].argmax(dim=1).cpu().numpy())
-    pred = out.argmax(dim=1)  # Use the class with highest probability.
-    test_correct = pred[data.test_mask] == data.y[data.test_mask]  # Check against ground-truth labels.
-    test_acc = int(test_correct.sum()) / int(data.test_mask.sum())  # Derive ratio of correct predictions.
-    return f1_test,test_acc
+    with torch.no_grad():
+        for data in test_loader:
+            data = data.to(device)
+            out = model(data.x, data.edge_index)
+            f1_test = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
+            print('Test F1: ', f1_test)
+    
+    return f1_test
+
 
 def plot():
     # plot f1 score for train and val every 20 epochs
