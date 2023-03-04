@@ -70,17 +70,22 @@ loss_val_list = []
 def train(epoch):
     model.train()
 
+    train_loss = 0
+
     for data in train_loader:  # Iterate in batches over the training dataset.
         data = data.to(device)
         optimizer.zero_grad()  # Clear gradients.
-        out = model(data.x, data.edge_index)  # Perform a single forward pass.
+        out = model(data.x, data.edge_index, data.batch)  # Perform a single forward pass.
         # f1_train = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
         # f1_train_list.append(f1_train)
         loss = criterion(out, data.y)  # Compute the loss solely based on the training nodes.
         loss.backward()  # Derive gradients.
         optimizer.step()  # Update parameters based on gradients.
+        train_loss += loss.item() * data.num_graphs
     
-    if epoch%20 == 0:
+    train_loss /= len(train_loader.dataset)
+    
+    if epoch%20 == 0:           # check this?
         f1_train = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
         f1_train_list.append(f1_train)
         loss_train_list.append(loss.item())
@@ -89,24 +94,31 @@ best_val_f1 = -1
 
 def val(epoch):
     model.eval()
+    val_loss_tot = 0
     for data in valid_loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index)
+        out = model(data.x, data.edge_index, data.batch)
         val_loss = criterion(out, data.y)
-        f1_val = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
-        global best_val_f1
-        if f1_val > best_val_f1:
-            best_val_f1 = f1_val
-        if epoch%20 == 0:
-            f1_val_list.append(f1_val)
-            loss_val_list.append(val_loss.item())
+        val_loss_tot += val_loss.item() * data.num_graphs
+
+        # check plotting?
+        # f1_val = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
+        # global best_val_f1
+        # if f1_val > best_val_f1:
+        #     best_val_f1 = f1_val
+        # if epoch%20 == 0:
+        #     f1_val_list.append(f1_val)
+        #     loss_val_list.append(val_loss.item())
+    val_loss_tot /= len(valid_loader.dataset)
 
 def test():
     model.eval()
     with torch.no_grad():
         for data in test_loader:
             data = data.to(device)
-            out = model(data.x, data.edge_index)
+            out = model(data.x, data.edge_index, data.batch)
+
+            # check this?
             f1_test = getMacroF1(data.y.cpu().numpy(), out.argmax(dim=1).cpu().numpy())
             print('Test F1: ', f1_test)
     

@@ -1,7 +1,7 @@
 import torch
 from torch.nn import Linear, ReLU
 import torch.nn.functional as F
-from torch_geometric.nn import GATConv
+from torch_geometric.nn import GATConv, global_add_pool
 
 
 class GAT(torch.nn.Module):
@@ -22,7 +22,7 @@ class GAT(torch.nn.Module):
 
         
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, batch):
         
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
@@ -31,5 +31,7 @@ class GAT(torch.nn.Module):
                 x = F.dropout(x, p=0.5, training=self.training)
 
         x = self.MLP(x)
+
+        x = global_add_pool(x, batch)          # sum pool
 
         return x

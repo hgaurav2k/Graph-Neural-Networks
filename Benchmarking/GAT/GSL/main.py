@@ -7,6 +7,7 @@ from model import GAT           # TODO check this
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 import os
+from torch_geometric.data import DataLoader
 
 
 parser = argparse.ArgumentParser()
@@ -43,57 +44,83 @@ model_folder = './models/'+args.dataset
 
 os.makedirs(model_folder, exist_ok=True)
 
-train_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
+if args.dataset == 'AIDS':
+    split_idx = dataset.get_idx_split()
+    train_loader = DataLoader(dataset[split_idx['train'][:420]], batch_size=32, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['train'][420:]], batch_size=32, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['test']], batch_size=32)
+elif args.dataset == 'LINUX':
+    split_idx = dataset.get_idx_split()
+    train_loader = DataLoader(dataset[split_idx['train'][:800]], batch_size=32, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['train'][800:]], batch_size=32, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['test']], batch_size=32)
+else:
+    print('Dataset not found')
+    exit(0)
+
 
 model = GAT(hidden_channels=32,num_features=dataset.num_features,num_layers=args.k,num_classes=dataset.num_classes).to(device)   # Note change num_features when needed
 
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5,weight_decay=5e-1)
 criterion = torch.nn.MSELoss()
 
-def getMacroF1(y_true, y_pred):
-    return metrics.f1_score(y_true, y_pred, average='macro')
-
 
 loss_train_list = []
 loss_val_list = []
 
-def train():
+def train(epoch):
     model.train()
 
-    for batch_idx, (data1, data2, target) in enumerate(train_loader):
-        data1, data2, target = data1.to(device), data2.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data1, data2)
-        loss = criterion(output, target)
-        loss.backward()
-        optimizer.step()
-        
-        if batch_idx % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data1), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
-        loss_train_list.append(loss.item())
+    # use all pair of graphs in train_loader
 
-def val():
+    train_loss = 0
+
+    for data1 in train_loader:
+        for data2 in train_loader:
+            data1, data2 = data1.to(device), data2.to(device)
+            optimizer.zero_grad()
+            output = model(data1.x, data1.edge_index, data1.batch,  data2.x, data2.edge_index, data2.batch)
+            target = dataset.ged(data1.i, data2.i)  # check this? Does it work with batching?
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+    
+    train_loss /= len(train_loader.dataset*len(train_loader.dataset))
+    # print epoch and loss
+    print('Train Epoch {} Loss: {:.6f}'.format(epoch, train_loss))
+    loss_train_list.append(train_loss)
+
+def val(epoch):
     model.eval()
 
     val_loss = 0
     with torch.no_grad():
-        for data1, data2, target in val_loader:
-            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
-            output = model(data1, data2)
-            val_loss += criterion(output, target).item()  # sum up batch loss
+        for data1 in valid_loader:
+            for data2 in valid_loader:
+                data1, data2 = data1.to(device), data2.to(device)
+                output = model(data1.x, data1.edge_index, data1.batch,  data2.x, data2.edge_index, data2.batch)
+                target = dataset.ged(data1.i, data2.i)
+                val_loss += criterion(output, target).item()  # sum up batch loss
+        
+    val_loss /= len(valid_loader.dataset*len(valid_loader.dataset))
+    print('Val Epoch {} Loss: {:.6f}'.format(epoch, val_loss))
+    loss_val_list.append(val_loss)
 
 def test():
     model.eval()
 
     test_loss = 0
     with torch.no_grad():
-        for data1, data2, target in test_loader:
-            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
-            output = model(data1, data2)
-            test_loss += criterion(output, target).item()  # sum up batch loss
-
+        for data1 in test_loader:
+            for data2 in test_loader:
+                data1, data2 = data1.to(device), data2.to(device)
+                output = model(data1.x, data1.edge_index, data1.batch,  data2.x, data2.edge_index, data2.batch)
+                target = dataset.ged(data1.i, data2.i)
+                test_loss += criterion(output, target).item()  # sum up batch loss
+    
+    test_loss /= len(test_loader.dataset*len(test_loader.dataset))
+    print('Test Loss: {:.6f}'.format(test_loss))
     test_loss /= len(test_loader.dataset)
 
 def plot():
