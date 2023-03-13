@@ -45,15 +45,23 @@ model_folder = './models/'+args.dataset
 os.makedirs(model_folder, exist_ok=True)
 print(dataset)
 if args.dataset == 'AIDS':
-    split_idx = dataset.split_idx
-    train_loader = DataLoader(dataset[split_idx['train'][:420]], batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset[split_idx['train'][420:]], batch_size=32, shuffle=False)
-    test_loader = DataLoader(dataset[split_idx['test']], batch_size=32)
+    # train first 420 graphs and validate on the rest
+    train_indices = range(420)
+    valid_indices = range(420, len(dataset))
+    split_idx = {'train': train_indices, 'valid': valid_indices}
+    dataset.split_idx = split_idx
+    train_loader = DataLoader(dataset[split_idx['train']], batch_size=32, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=32, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=32)        # what to do here?
 elif args.dataset == 'LINUX':
-    split_idx = dataset.split_idx
-    train_loader = DataLoader(dataset[split_idx['train'][:800]], batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset[split_idx['train'][800:]], batch_size=32, shuffle=False)
-    test_loader = DataLoader(dataset[split_idx['test']], batch_size=32)
+    # train first 800 graphs and validate on the rest
+    train_indices = range(800)
+    valid_indices = range(800, len(dataset))
+    split_idx = {'train': train_indices, 'valid': valid_indices}
+    dataset.split_idx = split_idx
+    train_loader = DataLoader(dataset[split_idx['train']], batch_size=32, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=32, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=32)        # what to do here?
 else:
     print('Dataset not found')
     exit(0)
