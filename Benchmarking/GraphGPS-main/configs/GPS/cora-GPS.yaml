@@ -2,10 +2,10 @@ out_dir: results
 metric_best: accuracy
 wandb:
   use: False
-  project: Wisconsin
+  project: Cora
 dataset:
-  format: PyG-WebKB
-  name: wisconsin
+  format: PyG
+  name: Cora
   task: node
   task_type: classification
   transductive: True
@@ -18,11 +18,11 @@ dataset:
   edge_encoder_name: DummyEdge
   edge_encoder_bn: False
 posenc_GraphormerBias:
-  enable: False
+  enable: False #Ig all of the below comments are meaningless since enable is set to False ;)
   node_degrees_only: True
-  num_spatial_types: 20
-  num_in_degrees: 12
-  num_out_degrees: 123
+  num_spatial_types: 20 #idk what the fuck this is 
+  num_in_degrees: 9   #compute for Cora and add 
+  num_out_degrees: 94 #compute for Cora and add 
 graphormer:
   use_graph_token: False
 posenc_LapPE:
@@ -49,8 +49,8 @@ train:
 #  sampler: saint_rw
 #  batch_size: 32
   eval_period: 5
-  enable_ckpt: False
-#  ckpt_period: 100
+  #enable_ckpt: False
+  ckpt_period: 100
 model:
   type: GPSModel
   loss_fun: cross_entropy
@@ -82,3 +82,38 @@ optim:
   max_epoch: 200
   scheduler: cosine_with_warmup
   num_warmup_epochs: 10
+
+
+#
+# out_dir: tests/results
+# dataset:
+#   format: PyG
+#   name: Cora
+#   task: node
+#   task_type: classification
+#   transductive: True
+# train:
+#   batch_size: 32
+#   eval_period: 20
+#   ckpt_period: 100
+# model:
+#   type: gnn
+#   loss_fun: cross_entropy
+#   edge_decoding: dot
+#   graph_pooling: add
+# gnn:
+#   layers_pre_mp: 1
+#   layers_mp: 2
+#   layers_post_mp: 1
+#   dim_inner: 256
+#   layer_type: generalconv
+#   stage_type: stack
+#   batchnorm: True
+#   act: prelu
+#   dropout: 0.0
+#   agg: add
+#   normalize_adj: False
+# optim:
+#   optimizer: adam
+#   base_lr: 0.01
+#   max_epoch: 400

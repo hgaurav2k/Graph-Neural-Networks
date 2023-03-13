@@ -556,6 +556,7 @@ def preformat_ZINC(dataset_dir, name):
     """
     if name not in ['subset', 'full']:
         raise ValueError(f"Unexpected subset choice for ZINC dataset: {name}")
+    print("here", dataset_dir)
     dataset = join_dataset_splits(
         [ZINC(root=dataset_dir, subset=(name == 'subset'), split=split)
          for split in ['train', 'val', 'test']]

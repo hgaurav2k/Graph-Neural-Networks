@@ -31,6 +31,14 @@ print(device)
 # device='cpu'
 
 data = dataset[0].to(device)  # Get the first graph object.
+
+# Note: Only took the first split
+if args.dataset == 'Wisconsin':
+    data.train_mask = data.train_mask[:, 0]
+    data.val_mask = data.val_mask[:, 0]
+    data.test_mask = data.test_mask[:, 0]
+
+
 print()
 print(data)
 print('===========================================================================================================')
