@@ -8,6 +8,7 @@ import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 import os
 from torch_geometric.data import DataLoader
+import tqdm
 
 
 parser = argparse.ArgumentParser()
@@ -50,18 +51,18 @@ if args.dataset == 'AIDS':
     valid_indices = range(420, len(dataset))
     split_idx = {'train': train_indices, 'valid': valid_indices}
     dataset.split_idx = split_idx
-    train_loader = DataLoader(dataset[split_idx['train']], batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=32, shuffle=False)
-    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=32)        # what to do here?
+    train_loader = DataLoader(dataset[split_idx['train']], batch_size=1, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=1, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=1)        # what to do here?
 elif args.dataset == 'LINUX':
     # train first 800 graphs and validate on the rest
     train_indices = range(800)
     valid_indices = range(800, len(dataset))
     split_idx = {'train': train_indices, 'valid': valid_indices}
     dataset.split_idx = split_idx
-    train_loader = DataLoader(dataset[split_idx['train']], batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=32, shuffle=False)
-    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=32)        # what to do here?
+    train_loader = DataLoader(dataset[split_idx['train']], batch_size=1, shuffle=True)
+    valid_loader = DataLoader(dataset[split_idx['valid']], batch_size=1, shuffle=False)
+    test_loader = DataLoader(dataset[split_idx['valid']], batch_size=1)        # what to do here?
 else:
     print('Dataset not found')
     exit(0)
@@ -83,13 +84,16 @@ def train(epoch):
 
     train_loss = 0
 
-    for data1 in train_loader:
+    for data1 in tqdm(train_loader):
         for data2 in train_loader:
+            # print(data1,data1.i)
+            # breakpoint()
             data1, data2 = data1.to(device), data2.to(device)
             optimizer.zero_grad()
             output = model(data1.x, data1.edge_index, data1.batch,  data2.x, data2.edge_index, data2.batch)
-            target = dataset.ged(data1.i, data2.i)  # check this? Does it work with batching?
+            target = dataset.ged[data1.i.item(), data2.i.item()].to(device)  # check this? Does it work with batching?
             loss = criterion(output, target)
+            breakpoint()
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
