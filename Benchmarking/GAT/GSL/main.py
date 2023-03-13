@@ -8,7 +8,7 @@ import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 import os
 from torch_geometric.data import DataLoader
-import tqdm
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser()
@@ -68,7 +68,7 @@ else:
     exit(0)
 
 
-model = GAT(hidden_channels=32,num_features=dataset.num_features,num_layers=args.k,num_classes=dataset.num_classes).to(device)   # Note change num_features when needed
+model = GAT(hidden_channels=32,num_features=dataset.num_features,num_layers=args.k).to(device)   # Note change num_features when needed
 
 optimizer = torch.optim.Adam(model.parameters(), lr=5e-5,weight_decay=5e-1)
 criterion = torch.nn.MSELoss()
@@ -93,7 +93,6 @@ def train(epoch):
             output = model(data1.x, data1.edge_index, data1.batch,  data2.x, data2.edge_index, data2.batch)
             target = dataset.ged[data1.i.item(), data2.i.item()].to(device)  # check this? Does it work with batching?
             loss = criterion(output, target)
-            breakpoint()
             loss.backward()
             optimizer.step()
             train_loss += loss.item()

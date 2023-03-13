@@ -5,7 +5,7 @@ from torch_geometric.nn import GATConv, global_add_pool
 
 
 class GAT(torch.nn.Module):
-    def __init__(self, hidden_channels, num_features, num_layers, num_classes):
+    def __init__(self, hidden_channels, num_features, num_layers):
         super().__init__()
         torch.manual_seed(1234567)
         self.num_layers = num_layers
@@ -15,9 +15,9 @@ class GAT(torch.nn.Module):
             self.convs.append(GATConv(hidden_channels, hidden_channels))
         
 
-        self.MLP = torch.nn.Sequential(Linear(hidden_channels, hidden_channels),
-                                        ReLU(),
-                                        Linear(hidden_channels, num_classes))
+        # self.MLP = torch.nn.Sequential(Linear(hidden_channels, hidden_channels),
+        #                                 ReLU(),
+        #                                 Linear(hidden_channels, hidden_channels))
 
 
         
@@ -35,9 +35,11 @@ class GAT(torch.nn.Module):
             if i != self.num_layers - 1:
                 x2 = F.elu(x2)
                 x2 = F.dropout(x2, p=0.5, training=self.training)
+
         
-        x1 = self.MLP(x1)
-        x2 = self.MLP(x2)
+        # x1 = self.MLP(x1)
+        # x2 = self.MLP(x2)
+
 
         x1 = global_add_pool(x1, batch1)          # sum pool
         x2 = global_add_pool(x2, batch2)          # sum pool
@@ -45,6 +47,7 @@ class GAT(torch.nn.Module):
         # dot product ie x1_T * x2 to get scalar
         # x = torch.mm(x1, x2.T)
         # or x1.T * x2
-        x = torch.mm(x1.T, x2)          # TODO check if this is correct
+        # x = torch.mm(x1, x2.T)          # TODO check if this is correct
+        x = torch.dot(x1.view(-1), x2.view(-1))          # TODO check if this is correct
 
         return x
